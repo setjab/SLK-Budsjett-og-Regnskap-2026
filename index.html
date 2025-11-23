@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLK Budsjett 2026</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .budget-input-section {
+            margin-bottom: 30px;
+        }
+        .budget-inputs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .budget-input-card {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .budget-input-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 0.9em;
+        }
+        .budget-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1.1em;
+        }
+        .input-section {
+            margin-bottom: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .chart-container {
+            margin-top: 30px;
+            position: relative;
+            height: 400px;
+            margin-bottom: 30px;
+        }
+        .summary {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .summary h3 {
+            margin-top: 0;
+        }
+        .download-section {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .month-total {
+            font-weight: bold;
+            background-color: #f2f2f2;
+        }
+        .progress-bar {
+            height: 10px;
+            background-color: #ecf0f1;
+            border-radius: 5px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #27ae60;
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .forecast-explanation {
+            background-color: #e8f4fc;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+        .status-over {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .status-under {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .status-normal {
+            color: #3498db;
+            font-weight: bold;
+        }
+        .budget-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .budget-card {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .budget-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 0.9em;
+        }
+        .budget-amount {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #27ae60;
+        }
+        .comment-section {
+            margin-top: 10px;
+        }
+        .comment-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .forecast-details {
+            background-color: #f0f8ff;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SLK Budsjett og Regnskap 2026</h1>
+        
+        <div class="budget-input-section">
+            <h2>Sett budsjett for hvert ansvarsområde</h2>
+            <div class="budget-inputs">
+                <div class="budget-input-card">
+                    <h3>33520 - Drift budsjett</h3>
+                    <input type="number" id="budget-33520" class="budget-input" placeholder="Skriv budsjettbeløp">
+                </div>
+                <div class="budget-input-card">
+                    <h3>33522 - Sosialhjelp utgifter for ordinære brukere</h3>
+                    <input type="number" id="budget-33522" class="budget-input" placeholder="Skriv budsjettbeløp">
+                </div>
+                <div class="budget-input-card">
+                    <h3>33524 - Sosialhjelp utgifter for flyktninger</h3>
+                    <input type="number" id="budget-33524" class="budget-input" placeholder="Skriv budsjettbeløp">
+                </div>
+                <div class="budget-input-card">
+                    <h3>33525 - Utgifter til husleie, varme og renhold</h3>
+                    <input type="number" id="budget-33525" class="budget-input" placeholder="Skriv budsjettbeløp">
+                </div>
+            </div>
+            <button id="set-budget-btn">Sett budsjett</button>
+        </div>
+
+        <div class="budget-display" id="budget-display">
+            <!-- Budsjettkort vil vises her når budsjett er satt -->
+        </div>
+
+        <div class="input-section">
+            <h2>Månedlige utgifter for hvert ansvarsområde</h2>
+            <table id="expense-table">
+                <thead>
+                    <tr>
+                        <th>Måned</th>
+                        <th>33520 - Drift budsjett</th>
+                        <th>33522 - Sosialhjelp ordinære</th>
+                        <th>33524 - Sosialhjelp flyktninger</th>
+                        <th>33525 - Husleie, varme, renhold</th>
+                        <th>Måned totalt</th>
+                    </tr>
+                </thead>
+                <tbody id="expense-body">
+                    <!-- Rader vil bli generert av JavaScript -->
+                </tbody>
+            </table>
+            
+            <div class="button-group">
+                <button id="calculate-btn">Beregn prognose for hvert ansvar</button>
+                <button id="reset-btn">Nullstill data</button>
+            </div>
+        </div>
+
+        <div class="summary" id="summary-section">
+            <h3>Prognose for hvert ansvarsområde</h3>
+            <div id="summary-content">
+                <!-- Prognose for hvert ansvar vil bli generert av JavaScript -->
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="budget-chart"></canvas>
+        </div>
+
+        <div class="download-section">
+            <button id="download-pdf">Last ned rapport som PDF</button>
+        </div>
+    </div>
+
+    <script>
+        // Tom budsjettdata - brukeren fyller inn selv
+        let budgets = {
+            '33520': 0,
+            '33522': 0,
+            '33524': 0,
+            '33525': 0
+        };
+
+        const months = [
+            'Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni',
+            'Juli', 'August', 'September', 'Oktober', 'November', 'Desember'
+        ];
+
+        // Initialiser utgiftsdata
+        let expenses = {};
+        months.forEach(month => {
+            expenses[month] = {
+                '33520': 0,
+                '33522': 0,
+                '33524': 0,
+                '33525': 0
+            };
+        });
+
+        // Lagre kommentarer for hvert ansvar
+        let comments = {
+            '33520': '',
+            '33522': '',
+            '33524': '',
+            '33525': ''
+        };
+
+        // Initialiser Chart.js
+        let budgetChart = null;
+
+        // Funksjon for å formatere tall med punktum som tusenskiller
+        function formatNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+
+        // Funksjon for å sette budsjett
+        function setBudgets() {
+            Object.keys(budgets).forEach(budgetId => {
+                const input = document.getElementById(`budget-${budgetId}`);
+                budgets[budgetId] = parseFloat(input.value) || 0;
+            });
+            
+            updateBudgetDisplay();
+            updateProgressBars();
+        }
+
+        // Funksjon for å oppdatere budsjettvisningen
+        function updateBudgetDisplay() {
+            const budgetDisplay = document.getElementById('budget-display');
+            budgetDisplay.innerHTML = '';
+            
+            Object.keys(budgets).forEach(budgetId => {
+                const budgetCard = document.createElement('div');
+                budgetCard.className = 'budget-card';
+                
+                let title = '';
+                switch(budgetId) {
+                    case '33520': title = '33520 - Drift budsjett'; break;
+                    case '33522': title = '33522 - Sosialhjelp ordinære'; break;
+                    case '33524': title = '33524 - Sosialhjelp flyktninger'; break;
+                    case '33525': title = '33525 - Husleie, varme, renhold'; break;
+                }
+                
+                budgetCard.innerHTML = `
+                    <h3>${title}</h3>
+                    <div class="budget-amount">${formatNumber(budgets[budgetId])} kr</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-${budgetId}"></div>
+                    </div>
+                `;
+                
+                budgetDisplay.appendChild(budgetCard);
+            });
+        }
+
+        // Funksjon for å initialisere tabellen
+        function initializeTable() {
+            const expenseBody = document.getElementById('expense-body');
+            expenseBody.innerHTML = '';
+
+            months.forEach(month => {
+                const row = document.createElement('tr');
+                
+                // Månedscelle
+                const monthCell = document.createElement('td');
+                monthCell.textContent = month;
+                row.appendChild(monthCell);
+                
+                // Input-celler for hvert ansvar
+                Object.keys(budgets).forEach(budgetId => {
+                    const inputCell = document.createElement('td');
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.min = '0';
+                    input.value = expenses[month][budgetId];
+                    input.dataset.month = month;
+                    input.dataset.budget = budgetId;
+                    input.addEventListener('input', updateExpense);
+                    inputCell.appendChild(input);
+                    row.appendChild(inputCell);
+                });
+                
+                // Måned totalt celle
+                const totalCell = document.createElement('td');
+                totalCell.className = 'month-total';
+                totalCell.id = `total-${month}`;
+                totalCell.textContent = '0 kr';
+                row.appendChild(totalCell);
+                
+                expenseBody.appendChild(row);
+            });
+            
+            updateTotals();
+            updateProgressBars();
+        }
+
+        // Funksjon for å oppdatere utgifter
+        function updateExpense(event) {
+            const input = event.target;
+            const month = input.dataset.month;
+            const budgetId = input.dataset.budget;
+            const value = parseFloat(input.value) || 0;
+            
+            expenses[month][budgetId] = value;
+            updateTotals();
+            updateProgressBars();
+        }
+
+        // Funksjon for å oppdatere totaler
+        function updateTotals() {
+            months.forEach(month => {
+                let monthTotal = 0;
+                Object.keys(budgets).forEach(budgetId => {
+                    monthTotal += expenses[month][budgetId];
+                });
+                document.getElementById(`total-${month}`).textContent = `${formatNumber(monthTotal)} kr`;
+            });
+        }
+
+        // Funksjon for å oppdatere fremdriftsindikatorer
+        function updateProgressBars() {
+            Object.keys(budgets).forEach(budgetId => {
+                let totalSpent = 0;
+                months.forEach(month => {
+                    totalSpent += expenses[month][budgetId];
+                });
+                
+                const percentage = budgets[budgetId] > 0 ? Math.min((totalSpent / budgets[budgetId]) * 100, 100) : 0;
+                document.getElementById(`progress-${budgetId}`).style.width = `${percentage}%`;
+            });
+        }
+
+        // Funksjon for å beregne prognose for hvert ansvar
+        function calculateForecast() {
+            const summaryContent = document.getElementById('summary-content');
+            
+            // Sjekk om budsjett er satt
+            let budgetsSet = false;
+            Object.keys(budgets).forEach(budgetId => {
+                if (budgets[budgetId] > 0) {
+                    budgetsSet = true;
+                }
+            });
+            
+            if (!budgetsSet) {
+                summaryContent.innerHTML = '<p style="color: #e74c3c;">Vennligst sett budsjett før du beregner prognose.</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            // For hvert ansvarsområde
+            Object.keys(budgets).forEach(budgetId => {
+                let totalSpent = 0;
+                
+                // Beregn totalt brukt så langt i år (alle måneder)
+                months.forEach(month => {
+                    totalSpent += expenses[month][budgetId];
+                });
+                
+                // Beregn månedlig gjennomsnitt basert på alle måneder med data
+                const monthsWithData = months.filter(month => expenses[month][budgetId] > 0).length;
+                const monthlyAverage = monthsWithData > 0 ? totalSpent / monthsWithData : 0;
+                
+                // Prognose for hele året = månedlig gjennomsnitt × 12
+                const yearlyForecast = monthlyAverage * 12;
+                
+                // Beregn over/under budsjett
+                const overUnder = yearlyForecast - budgets[budgetId];
+                const overUnderPercent = budgets[budgetId] > 0 ? (overUnder / budgets[budgetId]) * 100 : 0;
+                
+                // Bestem status
+                let status = '';
+                let statusClass = '';
+                if (overUnder > 0) {
+                    status = 'Over budsjett';
+                    statusClass = 'status-over';
+                } else if (overUnder < 0) {
+                    status = 'Under budsjett';
+                    statusClass = 'status-under';
+                } else {
+                    status = 'På budsjett';
+                    statusClass = 'status-normal';
+                }
+                
+                let title = '';
+                switch(budgetId) {
+                    case '33520': title = '33520 - Drift budsjett'; break;
+                    case '33522': title = '33522 - Sosialhjelp ordinære'; break;
+                    case '33524': title = '33524 - Sosialhjelp flyktninger'; break;
+                    case '33525': title = '33525 - Husleie, varme, renhold'; break;
+                }
+                
+                html += `
+                <div class="forecast-details">
+                    <h4>${title}</h4>
+                    <table style="width:100%">
+                        <tr>
+                            <th>Budsjett</th>
+                            <th>Brukt hittil</th>
+                            <th>Månedlig gjennomsnitt</th>
+                            <th>Prognose ut året</th>
+                            <th>Over/Under budsjett</th>
+                            <th>Status</th>
+                        </tr>
+                        <tr>
+                            <td>${formatNumber(budgets[budgetId])} kr</td>
+                            <td>${formatNumber(totalSpent)} kr</td>
+                            <td>${formatNumber(Math.round(monthlyAverage))} kr</td>
+                            <td>${formatNumber(Math.round(yearlyForecast))} kr</td>
+                            <td class="${overUnder > 0 ? 'status-over' : 'status-under'}">
+                                ${overUnder > 0 ? '+' : ''}${formatNumber(Math.round(overUnder))} kr (${overUnder > 0 ? '+' : ''}${overUnderPercent.toFixed(1)}%)
+                            </td>
+                            <td class="${statusClass}">${status}</td>
+                        </tr>
+                    </table>
+                    <div class="comment-section">
+                        <label for="comment-${budgetId}">Kommentar til ${status.toLowerCase()}:</label>
+                        <textarea id="comment-${budgetId}" class="comment-input" rows="2" placeholder="Skriv årsak til over/underforbruk..." onchange="updateComment('${budgetId}', this.value)">${comments[budgetId]}</textarea>
+                    </div>
+                </div>
+                `;
+            });
+            
+            // Legg til forklaring på beregningen
+            html += `
+            <div class="forecast-explanation">
+                <p><strong>Forklaring på prognoseberegning:</strong></p>
+                <p>Prognosen beregnes for hvert ansvarsområde separat ved å ta gjennomsnittlig månedlig forbruk og multiplisere med 12.</p>
+                <p><strong>Eksempel for 33520:</strong> Hvis budsjett er 1.000.000 kr og månedlig forbruk er 100.000 kr:</p>
+                <p>Prognose for hele året = 100.000 × 12 = 1.200.000 kr</p>
+                <p>Overforbruk = 1.200.000 - 1.000.000 = 200.000 kr (+20%)</p>
+            </div>
+            `;
+            
+            summaryContent.innerHTML = html;
+            
+            updateChart();
+        }
+
+        // Funksjon for å oppdatere kommentarer
+        function updateComment(budgetId, comment) {
+            comments[budgetId] = comment;
+        }
+
+        // Funksjon for å oppdatere diagrammet
+        function updateChart() {
+            const ctx = document.getElementById('budget-chart').getContext('2d');
+            
+            if (budgetChart) {
+                budgetChart.destroy();
+            }
+            
+            const spentData = [];
+            const budgetData = [];
+            const forecastData = [];
+            
+            Object.keys(budgets).forEach(budgetId => {
+                let totalSpent = 0;
+                months.forEach(month => {
+                    totalSpent += expenses[month][budgetId];
+                });
+                
+                // Beregn prognose for dette ansvaret
+                const monthsWithData = months.filter(month => expenses[month][budgetId] > 0).length;
+                const monthlyAverage = monthsWithData > 0 ? totalSpent / monthsWithData : 0;
+                const yearlyForecast = monthlyAverage * 12;
+                
+                spentData.push(totalSpent);
+                budgetData.push(budgets[budgetId]);
+                forecastData.push(yearlyForecast);
+            });
+            
+            budgetChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['33520 - Drift', '33522 - Sosialhjelp ordinære', '33524 - Sosialhjelp flyktninger', '33525 - Husleie, varme, renhold'],
+                    datasets: [
+                        {
+                            label: 'Brukt budsjett',
+                            data: spentData,
+                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Totalt budsjett',
+                            data: budgetData,
+                            backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Prognose ut året',
+                            data: forecastData,
+                            backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return formatNumber(value) + ' kr';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + formatNumber(context.parsed.y) + ' kr';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Funksjon for å laste ned PDF
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Legg til tittel
+            doc.setFontSize(16);
+            doc.text('SLK Budsjettrapport 2026 - Prognose per ansvar', 20, 20);
+            
+            // Legg til prognose for hvert ansvar
+            doc.setFontSize(12);
+            let yPosition = 40;
+            
+            Object.keys(budgets).forEach(budgetId => {
+                let totalSpent = 0;
+                months.forEach(month => {
+                    totalSpent += expenses[month][budgetId];
+                });
+                
+                // Beregn prognose
+                const monthsWithData = months.filter(month => expenses[month][budgetId] > 0).length;
+                const monthlyAverage = monthsWithData > 0 ? totalSpent / monthsWithData : 0;
+                const yearlyForecast = monthlyAverage * 12;
+                const overUnder = yearlyForecast - budgets[budgetId];
+                
+                let title = '';
+                switch(budgetId) {
+                    case '33520': title = '33520 - Drift budsjett'; break;
+                    case '33522': title = '33522 - Sosialhjelp ordinære'; break;
+                    case '33524': title = '33524 - Sosialhjelp flyktninger'; break;
+                    case '33525': title = '33525 - Husleie, varme, renhold'; break;
+                }
+                
+                doc.text(`${title}`, 20, yPosition);
+                yPosition += 7;
+                doc.text(`Budsjett: ${formatNumber(budgets[budgetId])} kr, Brukt: ${formatNumber(totalSpent)} kr`, 20, yPosition);
+                yPosition += 7;
+                doc.text(`Prognose: ${formatNumber(Math.round(yearlyForecast))} kr, Over/Under: ${overUnder > 0 ? '+' : ''}${formatNumber(Math.round(overUnder))} kr`, 20, yPosition);
+                yPosition += 7;
+                
+                if (comments[budgetId]) {
+                    doc.text(`Kommentar: ${comments[budgetId]}`, 20, yPosition);
+                    yPosition += 7;
+                }
+                
+                yPosition += 5; // Ekstra mellomrom
+                
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+            });
+            
+            // Lagre PDF
+            doc.save('SLK-budsjettrapport-2026.pdf');
+        }
+
+        // Funksjon for å nullstille data
+        function resetData() {
+            if (confirm('Er du sikker på at du vil nullstille alle data?')) {
+                months.forEach(month => {
+                    Object.keys(budgets).forEach(budgetId => {
+                        expenses[month][budgetId] = 0;
+                    });
+                });
+                
+                Object.keys(comments).forEach(budgetId => {
+                    comments[budgetId] = '';
+                });
+                
+                initializeTable();
+                document.getElementById('summary-content').innerHTML = '';
+                if (budgetChart) {
+                    budgetChart.destroy();
+                }
+            }
+        }
+
+        // Event listeners
+        document.getElementById('set-budget-btn').addEventListener('click', setBudgets);
+        document.getElementById('calculate-btn').addEventListener('click', calculateForecast);
+        document.getElementById('download-pdf').addEventListener('click', downloadPDF);
+        document.getElementById('reset-btn').addEventListener('click', resetData);
+
+        // Initialiser appen
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeTable();
+        });
+    </script>
+</body>
+</html>
