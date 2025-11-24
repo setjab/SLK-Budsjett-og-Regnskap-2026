@@ -200,19 +200,19 @@
             <div class="budget-inputs">
                 <div class="budget-input-card">
                     <h3>33520 - Drift budsjett</h3>
-                    <input type="number" id="budget-33520" class="budget-input" placeholder="Skriv budsjettbeløp">
+                    <input type="number" id="budget-33520" class="budget-input" placeholder="Skriv budsjettbeløp" value="6857730">
                 </div>
                 <div class="budget-input-card">
                     <h3>33522 - Sosialhjelp utgifter for ordinære brukere</h3>
-                    <input type="number" id="budget-33522" class="budget-input" placeholder="Skriv budsjettbeløp">
+                    <input type="number" id="budget-33522" class="budget-input" placeholder="Skriv budsjettbeløp" value="3474429">
                 </div>
                 <div class="budget-input-card">
                     <h3>33524 - Sosialhjelp utgifter for flyktninger</h3>
-                    <input type="number" id="budget-33524" class="budget-input" placeholder="Skriv budsjettbeløp">
+                    <input type="number" id="budget-33524" class="budget-input" placeholder="Skriv budsjettbeløp" value="5138145">
                 </div>
                 <div class="budget-input-card">
                     <h3>33525 - Utgifter til husleie, varme og renhold</h3>
-                    <input type="number" id="budget-33525" class="budget-input" placeholder="Skriv budsjettbeløp">
+                    <input type="number" id="budget-33525" class="budget-input" placeholder="Skriv budsjettbeløp" value="477023">
                 </div>
             </div>
             <button id="set-budget-btn">Sett budsjett</button>
@@ -263,12 +263,12 @@
     </div>
 
     <script>
-        // Tom budsjettdata - brukeren fyller inn selv
+        // Budsjettdata med faste beløp
         let budgets = {
-            '33520': 0,
-            '33522': 0,
-            '33524': 0,
-            '33525': 0
+            '33520': 6857730,
+            '33522': 3474429,
+            '33524': 5138145,
+            '33525': 477023
         };
 
         const months = [
@@ -699,8 +699,10 @@
         document.getElementById('download-pdf').addEventListener('click', downloadPDF);
         document.getElementById('reset-btn').addEventListener('click', resetData);
 
-        // Initialiser appen
+        // Initialiser appen med budsjettene forhåndsutfylt
         document.addEventListener('DOMContentLoaded', function() {
+            // Sett budsjettene automatisk når siden lastes
+            setBudgets();
             initializeTable();
         });
     </script>
