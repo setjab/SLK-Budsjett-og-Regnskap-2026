@@ -79,6 +79,7 @@
         }
         .button-group {
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
             margin-bottom: 20px;
         }
@@ -153,7 +154,7 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 15px;
-            margin-bottom: 30px;
+            margin-bottom: 10px;
         }
         .budget-card {
             background-color: #f8f9fa;
@@ -189,12 +190,55 @@
             border-radius: 5px;
             margin: 10px 0;
         }
+
+        .save-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin: 10px 0 25px 0;
+            padding: 10px;
+            border-radius: 6px;
+            background: #f6fbff;
+            border: 1px solid #d9ecff;
+            font-size: 0.95em;
+        }
+        .save-indicator .status {
+            color: #2c3e50;
+        }
+        .save-indicator .muted {
+            color: #6b7a89;
+            font-size: 0.9em;
+        }
+        .danger-btn {
+            background-color: #e74c3c;
+        }
+        .danger-btn:hover {
+            background-color: #c0392b;
+        }
+        .secondary-btn {
+            background-color: #2c3e50;
+        }
+        .secondary-btn:hover {
+            background-color: #1f2d3a;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>SLK Budsjett og Regnskap 2026</h1>
-        
+
+        <div class="save-indicator">
+            <div>
+                <div class="status" id="save-status">Status: Leser lagrede data…</div>
+                <div class="muted" id="save-meta">Lagring skjer automatisk når du endrer tall og kommentarer.</div>
+            </div>
+            <div class="button-group" style="margin:0;">
+                <button id="save-now-btn" class="secondary-btn">Lagre nå</button>
+                <button id="reset-btn-top" class="danger-btn">Nullstill data</button>
+            </div>
+        </div>
+
         <div class="budget-input-section">
             <h2>Sett budsjett for hvert ansvarsområde</h2>
             <div class="budget-inputs">
@@ -239,7 +283,7 @@
                     <!-- Rader vil bli generert av JavaScript -->
                 </tbody>
             </table>
-            
+
             <div class="button-group">
                 <button id="calculate-btn">Beregn prognose for hvert ansvar</button>
                 <button id="reset-btn">Nullstill data</button>
@@ -263,7 +307,77 @@
     </div>
 
     <script>
-        // Budsjettdata med faste beløp
+        /***********************
+         * LAGRING (localStorage)
+         ***********************/
+        const STORAGE_KEY = "slk_budsjett_regnskap_2026_v1";
+
+        function nowIso() {
+            return new Date().toISOString();
+        }
+
+        function setSaveStatus(text, isError=false) {
+            const el = document.getElementById("save-status");
+            el.textContent = text;
+            el.style.color = isError ? "#e74c3c" : "#2c3e50";
+        }
+
+        function setSaveMeta(text) {
+            document.getElementById("save-meta").textContent = text;
+        }
+
+        function safeParseJSON(value) {
+            try { return JSON.parse(value); } catch { return null; }
+        }
+
+        function saveState() {
+            const state = {
+                version: 1,
+                savedAt: nowIso(),
+                budgets,
+                expenses,
+                comments
+            };
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                setSaveStatus("Status: Lagret");
+                setSaveMeta("Sist lagret: " + new Date(state.savedAt).toLocaleString("no-NO"));
+            } catch (e) {
+                setSaveStatus("Status: Kunne ikke lagre (localStorage er utilgjengelig)", true);
+                setSaveMeta("Feil: " + (e && e.message ? e.message : "Ukjent feil"));
+            }
+        }
+
+        function loadState() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return false;
+
+            const parsed = safeParseJSON(raw);
+            if (!parsed || !parsed.version) return false;
+
+            // Oppdater kun hvis struktur finnes
+            if (parsed.budgets) budgets = parsed.budgets;
+            if (parsed.expenses) expenses = parsed.expenses;
+            if (parsed.comments) comments = parsed.comments;
+
+            setSaveStatus("Status: Lest fra lagring");
+            if (parsed.savedAt) {
+                setSaveMeta("Sist lagret: " + new Date(parsed.savedAt).toLocaleString("no-NO"));
+            } else {
+                setSaveMeta("Lagring skjer automatisk når du endrer tall og kommentarer.");
+            }
+            return true;
+        }
+
+        function clearState() {
+            localStorage.removeItem(STORAGE_KEY);
+        }
+
+        /***********************
+         * APPLIKASJON
+         ***********************/
+
+        // Budsjettdata med faste beløp (overskrives av lagring hvis finnes)
         let budgets = {
             '33520': 6857730,
             '33522': 3474429,
@@ -276,7 +390,7 @@
             'Juli', 'August', 'September', 'Oktober', 'November', 'Desember'
         ];
 
-        // Initialiser utgiftsdata
+        // Initialiser utgiftsdata (overskrives av lagring hvis finnes)
         let expenses = {};
         months.forEach(month => {
             expenses[month] = {
@@ -287,7 +401,7 @@
             };
         });
 
-        // Lagre kommentarer for hvert ansvar
+        // Kommentarer (overskrives av lagring hvis finnes)
         let comments = {
             '33520': '',
             '33522': '',
@@ -295,34 +409,41 @@
             '33525': ''
         };
 
-        // Initialiser Chart.js
+        // Chart.js
         let budgetChart = null;
 
-        // Funksjon for å formatere tall med punktum som tusenskiller
         function formatNumber(num) {
-            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            return (num || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
         }
 
-        // Funksjon for å sette budsjett
-        function setBudgets() {
+        function setBudgets(save=true) {
             Object.keys(budgets).forEach(budgetId => {
                 const input = document.getElementById(`budget-${budgetId}`);
+                if (!input) return;
                 budgets[budgetId] = parseFloat(input.value) || 0;
             });
-            
+
             updateBudgetDisplay();
             updateProgressBars();
+
+            if (save) saveState();
         }
 
-        // Funksjon for å oppdatere budsjettvisningen
+        function updateBudgetInputsFromState() {
+            Object.keys(budgets).forEach(budgetId => {
+                const input = document.getElementById(`budget-${budgetId}`);
+                if (input) input.value = budgets[budgetId] ?? 0;
+            });
+        }
+
         function updateBudgetDisplay() {
             const budgetDisplay = document.getElementById('budget-display');
             budgetDisplay.innerHTML = '';
-            
+
             Object.keys(budgets).forEach(budgetId => {
                 const budgetCard = document.createElement('div');
                 budgetCard.className = 'budget-card';
-                
+
                 let title = '';
                 switch(budgetId) {
                     case '33520': title = '33520 - Drift budsjett'; break;
@@ -330,7 +451,7 @@
                     case '33524': title = '33524 - Sosialhjelp flyktninger'; break;
                     case '33525': title = '33525 - Husleie, varme, renhold'; break;
                 }
-                
+
                 budgetCard.innerHTML = `
                     <h3>${title}</h3>
                     <div class="budget-amount">${formatNumber(budgets[budgetId])} kr</div>
@@ -338,128 +459,131 @@
                         <div class="progress-fill" id="progress-${budgetId}"></div>
                     </div>
                 `;
-                
+
                 budgetDisplay.appendChild(budgetCard);
             });
         }
 
-        // Funksjon for å initialisere tabellen
         function initializeTable() {
             const expenseBody = document.getElementById('expense-body');
             expenseBody.innerHTML = '';
 
             months.forEach(month => {
                 const row = document.createElement('tr');
-                
-                // Månedscelle
+
                 const monthCell = document.createElement('td');
                 monthCell.textContent = month;
                 row.appendChild(monthCell);
-                
-                // Input-celler for hvert ansvar
+
                 Object.keys(budgets).forEach(budgetId => {
                     const inputCell = document.createElement('td');
                     const input = document.createElement('input');
                     input.type = 'number';
                     input.min = '0';
+
+                    // Robust: hvis month/budget mangler i lagret state
+                    if (!expenses[month]) expenses[month] = {};
+                    if (expenses[month][budgetId] === undefined || expenses[month][budgetId] === null) {
+                        expenses[month][budgetId] = 0;
+                    }
+
                     input.value = expenses[month][budgetId];
                     input.dataset.month = month;
                     input.dataset.budget = budgetId;
+
                     input.addEventListener('input', updateExpense);
+                    input.addEventListener('change', () => saveState()); // ekstra sikkerhet
+
                     inputCell.appendChild(input);
                     row.appendChild(inputCell);
                 });
-                
-                // Måned totalt celle
+
                 const totalCell = document.createElement('td');
                 totalCell.className = 'month-total';
                 totalCell.id = `total-${month}`;
                 totalCell.textContent = '0 kr';
                 row.appendChild(totalCell);
-                
+
                 expenseBody.appendChild(row);
             });
-            
+
             updateTotals();
             updateProgressBars();
         }
 
-        // Funksjon for å oppdatere utgifter
         function updateExpense(event) {
             const input = event.target;
             const month = input.dataset.month;
             const budgetId = input.dataset.budget;
             const value = parseFloat(input.value) || 0;
-            
+
+            if (!expenses[month]) expenses[month] = {};
             expenses[month][budgetId] = value;
+
             updateTotals();
             updateProgressBars();
+
+            // Autosave ved endring
+            saveState();
         }
 
-        // Funksjon for å oppdatere totaler
         function updateTotals() {
             months.forEach(month => {
                 let monthTotal = 0;
                 Object.keys(budgets).forEach(budgetId => {
-                    monthTotal += expenses[month][budgetId];
+                    const val = (expenses[month] && expenses[month][budgetId]) ? expenses[month][budgetId] : 0;
+                    monthTotal += val;
                 });
-                document.getElementById(`total-${month}`).textContent = `${formatNumber(monthTotal)} kr`;
+                const cell = document.getElementById(`total-${month}`);
+                if (cell) cell.textContent = `${formatNumber(monthTotal)} kr`;
             });
         }
 
-        // Funksjon for å oppdatere fremdriftsindikatorer
         function updateProgressBars() {
             Object.keys(budgets).forEach(budgetId => {
                 let totalSpent = 0;
                 months.forEach(month => {
-                    totalSpent += expenses[month][budgetId];
+                    const val = (expenses[month] && expenses[month][budgetId]) ? expenses[month][budgetId] : 0;
+                    totalSpent += val;
                 });
-                
+
                 const percentage = budgets[budgetId] > 0 ? Math.min((totalSpent / budgets[budgetId]) * 100, 100) : 0;
-                document.getElementById(`progress-${budgetId}`).style.width = `${percentage}%`;
+                const bar = document.getElementById(`progress-${budgetId}`);
+                if (bar) bar.style.width = `${percentage}%`;
             });
         }
 
-        // Funksjon for å beregne prognose for hvert ansvar
         function calculateForecast() {
             const summaryContent = document.getElementById('summary-content');
-            
-            // Sjekk om budsjett er satt
+
             let budgetsSet = false;
             Object.keys(budgets).forEach(budgetId => {
-                if (budgets[budgetId] > 0) {
-                    budgetsSet = true;
-                }
+                if (budgets[budgetId] > 0) budgetsSet = true;
             });
-            
+
             if (!budgetsSet) {
                 summaryContent.innerHTML = '<p style="color: #e74c3c;">Vennligst sett budsjett før du beregner prognose.</p>';
                 return;
             }
-            
+
             let html = '';
-            
-            // For hvert ansvarsområde
+
             Object.keys(budgets).forEach(budgetId => {
                 let totalSpent = 0;
-                
-                // Beregn totalt brukt så langt i år (alle måneder)
+
                 months.forEach(month => {
-                    totalSpent += expenses[month][budgetId];
+                    const val = (expenses[month] && expenses[month][budgetId]) ? expenses[month][budgetId] : 0;
+                    totalSpent += val;
                 });
-                
-                // Beregn månedlig gjennomsnitt basert på alle måneder med data
-                const monthsWithData = months.filter(month => expenses[month][budgetId] > 0).length;
+
+                const monthsWithData = months.filter(month => (expenses[month] && (expenses[month][budgetId] || 0) > 0)).length;
                 const monthlyAverage = monthsWithData > 0 ? totalSpent / monthsWithData : 0;
-                
-                // Prognose for hele året = månedlig gjennomsnitt × 12
+
                 const yearlyForecast = monthlyAverage * 12;
-                
-                // Beregn over/under budsjett
+
                 const overUnder = yearlyForecast - budgets[budgetId];
                 const overUnderPercent = budgets[budgetId] > 0 ? (overUnder / budgets[budgetId]) * 100 : 0;
-                
-                // Bestem status
+
                 let status = '';
                 let statusClass = '';
                 if (overUnder > 0) {
@@ -472,7 +596,7 @@
                     status = 'På budsjett';
                     statusClass = 'status-normal';
                 }
-                
+
                 let title = '';
                 switch(budgetId) {
                     case '33520': title = '33520 - Drift budsjett'; break;
@@ -480,7 +604,7 @@
                     case '33524': title = '33524 - Sosialhjelp flyktninger'; break;
                     case '33525': title = '33525 - Husleie, varme, renhold'; break;
                 }
-                
+
                 html += `
                 <div class="forecast-details">
                     <h4>${title}</h4>
@@ -495,7 +619,7 @@
                         </tr>
                         <tr>
                             <td>${formatNumber(budgets[budgetId])} kr</td>
-                            <td>${formatNumber(totalSpent)} kr</td>
+                            <td>${formatNumber(Math.round(totalSpent))} kr</td>
                             <td>${formatNumber(Math.round(monthlyAverage))} kr</td>
                             <td>${formatNumber(Math.round(yearlyForecast))} kr</td>
                             <td class="${overUnder > 0 ? 'status-over' : 'status-under'}">
@@ -506,13 +630,12 @@
                     </table>
                     <div class="comment-section">
                         <label for="comment-${budgetId}">Kommentar til ${status.toLowerCase()}:</label>
-                        <textarea id="comment-${budgetId}" class="comment-input" rows="2" placeholder="Skriv årsak til over/underforbruk..." onchange="updateComment('${budgetId}', this.value)">${comments[budgetId]}</textarea>
+                        <textarea id="comment-${budgetId}" class="comment-input" rows="2" placeholder="Skriv årsak til over/underforbruk...">${comments[budgetId] || ''}</textarea>
                     </div>
                 </div>
                 `;
             });
-            
-            // Legg til forklaring på beregningen
+
             html += `
             <div class="forecast-explanation">
                 <p><strong>Forklaring på prognoseberegning:</strong></p>
@@ -522,70 +645,77 @@
                 <p>Overforbruk = 1.200.000 - 1.000.000 = 200.000 kr (+20%)</p>
             </div>
             `;
-            
+
             summaryContent.innerHTML = html;
-            
+
+            // Koble autosave til kommentar-felt etter at de er laget
+            Object.keys(budgets).forEach(budgetId => {
+                const textarea = document.getElementById(`comment-${budgetId}`);
+                if (!textarea) return;
+
+                textarea.addEventListener('input', (e) => {
+                    comments[budgetId] = e.target.value || '';
+                    saveState();
+                });
+
+                textarea.addEventListener('change', (e) => {
+                    comments[budgetId] = e.target.value || '';
+                    saveState();
+                });
+            });
+
+            // Lagre også etter at prognosevisning er bygd (så kommentarene ligger i state)
+            saveState();
+
             updateChart();
         }
 
-        // Funksjon for å oppdatere kommentarer
-        function updateComment(budgetId, comment) {
-            comments[budgetId] = comment;
-        }
-
-        // Funksjon for å oppdatere diagrammet
         function updateChart() {
             const ctx = document.getElementById('budget-chart').getContext('2d');
-            
-            if (budgetChart) {
-                budgetChart.destroy();
-            }
-            
+
+            if (budgetChart) budgetChart.destroy();
+
             const spentData = [];
             const budgetData = [];
             const forecastData = [];
-            
+
             Object.keys(budgets).forEach(budgetId => {
                 let totalSpent = 0;
                 months.forEach(month => {
-                    totalSpent += expenses[month][budgetId];
+                    const val = (expenses[month] && expenses[month][budgetId]) ? expenses[month][budgetId] : 0;
+                    totalSpent += val;
                 });
-                
-                // Beregn prognose for dette ansvaret
-                const monthsWithData = months.filter(month => expenses[month][budgetId] > 0).length;
+
+                const monthsWithData = months.filter(month => (expenses[month] && (expenses[month][budgetId] || 0) > 0)).length;
                 const monthlyAverage = monthsWithData > 0 ? totalSpent / monthsWithData : 0;
                 const yearlyForecast = monthlyAverage * 12;
-                
+
                 spentData.push(totalSpent);
                 budgetData.push(budgets[budgetId]);
                 forecastData.push(yearlyForecast);
             });
-            
+
             budgetChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['33520 - Drift', '33522 - Sosialhjelp ordinære', '33524 - Sosialhjelp flyktninger', '33525 - Husleie, varme, renhold'],
+                    labels: [
+                        '33520 - Drift',
+                        '33522 - Sosialhjelp ordinære',
+                        '33524 - Sosialhjelp flyktninger',
+                        '33525 - Husleie, varme, renhold'
+                    ],
                     datasets: [
                         {
                             label: 'Brukt budsjett',
-                            data: spentData,
-                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            borderWidth: 1
+                            data: spentData
                         },
                         {
                             label: 'Totalt budsjett',
-                            data: budgetData,
-                            backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                            borderColor: 'rgba(255, 99, 132, 1)',
-                            borderWidth: 1
+                            data: budgetData
                         },
                         {
                             label: 'Prognose ut året',
-                            data: forecastData,
-                            backgroundColor: 'rgba(75, 192, 192, 0.5)',
-                            borderColor: 'rgba(75, 192, 192, 1)',
-                            borderWidth: 1
+                            data: forecastData
                         }
                     ]
                 },
@@ -615,31 +745,28 @@
             });
         }
 
-        // Funksjon for å laste ned PDF
         function downloadPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
-            
-            // Legg til tittel
+
             doc.setFontSize(16);
             doc.text('SLK Budsjettrapport 2026 - Prognose per ansvar', 20, 20);
-            
-            // Legg til prognose for hvert ansvar
+
             doc.setFontSize(12);
             let yPosition = 40;
-            
+
             Object.keys(budgets).forEach(budgetId => {
                 let totalSpent = 0;
                 months.forEach(month => {
-                    totalSpent += expenses[month][budgetId];
+                    const val = (expenses[month] && expenses[month][budgetId]) ? expenses[month][budgetId] : 0;
+                    totalSpent += val;
                 });
-                
-                // Beregn prognose
-                const monthsWithData = months.filter(month => expenses[month][budgetId] > 0).length;
+
+                const monthsWithData = months.filter(month => (expenses[month] && (expenses[month][budgetId] || 0) > 0)).length;
                 const monthlyAverage = monthsWithData > 0 ? totalSpent / monthsWithData : 0;
                 const yearlyForecast = monthlyAverage * 12;
                 const overUnder = yearlyForecast - budgets[budgetId];
-                
+
                 let title = '';
                 switch(budgetId) {
                     case '33520': title = '33520 - Drift budsjett'; break;
@@ -647,63 +774,98 @@
                     case '33524': title = '33524 - Sosialhjelp flyktninger'; break;
                     case '33525': title = '33525 - Husleie, varme, renhold'; break;
                 }
-                
+
                 doc.text(`${title}`, 20, yPosition);
                 yPosition += 7;
-                doc.text(`Budsjett: ${formatNumber(budgets[budgetId])} kr, Brukt: ${formatNumber(totalSpent)} kr`, 20, yPosition);
+                doc.text(`Budsjett: ${formatNumber(budgets[budgetId])} kr, Brukt: ${formatNumber(Math.round(totalSpent))} kr`, 20, yPosition);
                 yPosition += 7;
                 doc.text(`Prognose: ${formatNumber(Math.round(yearlyForecast))} kr, Over/Under: ${overUnder > 0 ? '+' : ''}${formatNumber(Math.round(overUnder))} kr`, 20, yPosition);
                 yPosition += 7;
-                
+
                 if (comments[budgetId]) {
                     doc.text(`Kommentar: ${comments[budgetId]}`, 20, yPosition);
                     yPosition += 7;
                 }
-                
-                yPosition += 5; // Ekstra mellomrom
-                
+
+                yPosition += 5;
+
                 if (yPosition > 270) {
                     doc.addPage();
                     yPosition = 20;
                 }
             });
-            
-            // Lagre PDF
+
             doc.save('SLK-budsjettrapport-2026.pdf');
         }
 
-        // Funksjon for å nullstille data
         function resetData() {
-            if (confirm('Er du sikker på at du vil nullstille alle data?')) {
-                months.forEach(month => {
-                    Object.keys(budgets).forEach(budgetId => {
-                        expenses[month][budgetId] = 0;
-                    });
+            if (!confirm('Er du sikker på at du vil nullstille alle data? Dette sletter også lagrede data i nettleseren.')) return;
+
+            // Nullstill state i minnet
+            months.forEach(month => {
+                if (!expenses[month]) expenses[month] = {};
+                Object.keys(budgets).forEach(budgetId => {
+                    expenses[month][budgetId] = 0;
                 });
-                
-                Object.keys(comments).forEach(budgetId => {
-                    comments[budgetId] = '';
-                });
-                
-                initializeTable();
-                document.getElementById('summary-content').innerHTML = '';
-                if (budgetChart) {
-                    budgetChart.destroy();
-                }
-            }
+            });
+
+            Object.keys(comments).forEach(budgetId => {
+                comments[budgetId] = '';
+            });
+
+            // Slett lagring
+            clearState();
+            setSaveStatus("Status: Lagret data er slettet");
+            setSaveMeta("Du kan begynne på nytt. Lagring skjer automatisk ved endringer.");
+
+            // Re-render
+            updateBudgetInputsFromState();
+            updateBudgetDisplay();
+            initializeTable();
+
+            document.getElementById('summary-content').innerHTML = '';
+            if (budgetChart) budgetChart.destroy();
+
+            // Lagre tomt utgangspunkt (slik at alt er konsistent)
+            saveState();
         }
 
         // Event listeners
-        document.getElementById('set-budget-btn').addEventListener('click', setBudgets);
+        document.getElementById('set-budget-btn').addEventListener('click', () => setBudgets(true));
         document.getElementById('calculate-btn').addEventListener('click', calculateForecast);
         document.getElementById('download-pdf').addEventListener('click', downloadPDF);
         document.getElementById('reset-btn').addEventListener('click', resetData);
+        document.getElementById('reset-btn-top').addEventListener('click', resetData);
 
-        // Initialiser appen med budsjettene forhåndsutfylt
+        // Manuell lagre-knapp
+        document.getElementById('save-now-btn').addEventListener('click', () => {
+            saveState();
+            alert('Data er lagret i nettleseren.');
+        });
+
+        // Lagr også når budsjettfeltene endres (uten å måtte trykke "Sett budsjett")
+        ['33520','33522','33524','33525'].forEach(id => {
+            const el = document.getElementById(`budget-${id}`);
+            if (!el) return;
+            el.addEventListener('input', () => {
+                // Oppdater budsjetter fra input, men ikke spam alert – bare autosave
+                setBudgets(true);
+            });
+        });
+
+        // Init
         document.addEventListener('DOMContentLoaded', function() {
-            // Sett budsjettene automatisk når siden lastes
-            setBudgets();
+            const hadSaved = loadState(); // hvis finnes: overskriver budgets/expenses/comments
+            updateBudgetInputsFromState(); // sett inputfeltene i UI fra state
+            updateBudgetDisplay();
             initializeTable();
+
+            // Hvis ingen lagring fantes, lagre starttilstand (slik at du får "Sist lagret")
+            if (!hadSaved) {
+                setSaveStatus("Status: Ingen lagrede data funnet");
+                setSaveMeta("Lagring skjer automatisk når du endrer tall og kommentarer.");
+                saveState();
+            }
         });
     </script>
 </body>
